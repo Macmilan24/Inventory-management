@@ -151,7 +151,6 @@ export default function Home() {
               minHeight="150px"
               display="flex"
               bgcolor="#f0f0f0f0"
-              display="flex"
               justifyContent="space-between"
               alignItems="center"
               padding={5}
