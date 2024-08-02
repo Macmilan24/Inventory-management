@@ -18,8 +18,13 @@ import {
   Stack,
   TextField,
   Typography,
+  IconButton,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import { DataGrid } from "@mui/x-data-grid";
 import { firestore } from "@/firebase";
+import { Bar } from "react-chartjs-2";
+import "chart.js/auto";
 
 export default function Home() {
   const [inventory, setInventory] = useState([]);
@@ -29,13 +34,30 @@ export default function Home() {
   const [selectedItem, setSelectedItem] = useState("");
   const [updatedName, setUpdatedName] = useState("");
   const [updatedQuantity, setUpdatedQuantity] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const searchItems = async (searchTerm) => {
+    const snapshot = query(collection(firestore, "inventory"));
+    const docs = await getDocs(snapshot);
+    const searchResults = [];
+    docs.forEach((doc) => {
+      const data = doc.data();
+      const docIdIncludesTerm = doc.id.includes(searchTerm);
+      const dataNameIncludesTerm = data.name && data.name.includes(searchTerm);
+
+      if (searchTerm === "" || docIdIncludesTerm || dataNameIncludesTerm) {
+        searchResults.push({ id: doc.id, ...data });
+      }
+    });
+    setInventory(searchResults);
+  };
 
   const updateInventory = async () => {
     const snapshot = query(collection(firestore, "inventory"));
     const docs = await getDocs(snapshot);
     const inventoryList = [];
     docs.forEach((doc) => {
-      inventoryList.push({ name: doc.id, ...doc.data() });
+      inventoryList.push({ id: doc.id, ...doc.data() });
     });
 
     setInventory(inventoryList);
@@ -76,10 +98,13 @@ export default function Home() {
 
   const handleUpdate = () => {
     updateItems(selectedItem, { name: updatedName, quantity: updatedQuantity });
+    setUpdatedName("");
+    setUpdatedQuantity("");
     setUOpen(false);
   };
 
   useEffect(() => {
+    searchItems("");
     updateInventory();
   }, []);
 
@@ -87,17 +112,140 @@ export default function Home() {
   const handleClose = () => setOpen(false);
   const handleUOpen = () => setUOpen(true);
   const handleUClose = () => setUOpen(false);
+
+  const chartData = {
+    labels: inventory.map((item) => item.id),
+    datasets: [
+      {
+        label: "Quantity",
+        data: inventory.map((item) => item.quantity),
+        backgroundColor: "rgba(75, 192, 192, 0.6)",
+        borderColor: "rgba(75, 192, 192, 1)",
+        borderWidth: 1,
+        widht: "60%",
+        height: "100px",
+      },
+    ],
+  };
+
   return (
     <Box
       width="100vw"
-      height="100vh"
       display="flex"
       flexDirection="column"
       justifyContent="center"
       alignItems="center"
       gap={2}
+      sx={{
+        background: "rgb(0,42,255)",
+        background:
+          " radial-gradient(circle, rgba(0,42,255,1) 0%, rgba(4,15,111,1) 36%, rgba(1,4,33,1) 62%, rgba(0,0,0,1) 94%)",
+      }}
     >
-      <Modal open={open} onClose={handleUClose}>
+      <Typography variant="h2" color="white" align="left" m={4}>
+        Inventory Management
+      </Typography>
+
+      <Box
+        width="80%"
+        height="80%"
+        display="flex"
+        flexDirection="column"
+        alignItems="baseline"
+        gap={2}
+      >
+        <TextField
+          variant="outlined"
+          placeholder="Search..."
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            searchItems(e.target.value);
+          }}
+          sx={{
+            backgroundColor: "#fff",
+            marginBottom: 2,
+            borderRadius: "15px",
+          }}
+        />
+
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          width="100%"
+        >
+          <Box width="70%">
+            <DataGrid
+              rows={inventory}
+              columns={[
+                { field: "id", headerName: "Name", width: 150 },
+                { field: "quantity", headerName: "Quantity", width: 150 },
+                {
+                  field: "actions",
+                  headerName: "Actions",
+                  width: 300,
+                  renderCell: (params) => (
+                    <>
+                      <Button
+                        variant="contained"
+                        onClick={() => {
+                          removeItem(params.row.id);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                      <Button
+                        variant="contained"
+                        onClick={() => {
+                          setSelectedItem(params.row.id);
+                          handleUOpen();
+                        }}
+                        sx={{ marginLeft: 2 }}
+                      >
+                        Update
+                      </Button>
+                    </>
+                  ),
+                },
+              ]}
+              pageSize={5}
+              rowsPerPageOptions={[5]}
+              disableSelectionOnClick
+              autoHeight
+              sx={{
+                "& .MuiDataGrid-cell": {
+                  color: "white",
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  color: "#000",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  color: "white",
+                },
+              }}
+            />
+          </Box>
+
+          <IconButton
+            color="primary"
+            sx={{
+              backgroundColor: "#007bff",
+              color: "white",
+              "&:hover": { backgroundColor: "#0056b3" },
+              width: 60,
+              height: 60,
+            }}
+            onClick={handleOpen}
+          >
+            <AddIcon fontSize="large" />
+          </IconButton>
+        </Box>
+
+        <Bar width="80%" height="19px" data={chartData} />
+      </Box>
+
+      <Modal open={open} onClose={handleClose}>
         <Box
           width="100vw"
           height="100vh"
@@ -139,8 +287,7 @@ export default function Home() {
         </Box>
       </Modal>
 
-      {/* update Modal */}
-      <Modal open={Uopen} onClose={handleClose}>
+      <Modal open={Uopen} onClose={handleUClose}>
         <Box
           width="100vw"
           height="100vh"
@@ -178,69 +325,6 @@ export default function Home() {
           </Box>
         </Box>
       </Modal>
-
-      <Button
-        variant="contained"
-        onClick={() => {
-          handleOpen();
-        }}
-      >
-        Add New Item
-      </Button>
-
-      <Box border="1px solid #333">
-        <Box
-          width="800px"
-          height="100px"
-          bgcolor="#ADD8E6"
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-        >
-          <Typography variant="h2" color="#333">
-            Inventory Item
-          </Typography>
-        </Box>
-
-        <Stack width="800px" height="300px" spacing={2} overflow="auto">
-          {inventory.map(({ name, quantity }) => (
-            <Box
-              key={name}
-              width="100%"
-              minHeight="150px"
-              display="flex"
-              bgcolor="#f0f0f0f0"
-              justifyContent="space-between"
-              alignItems="center"
-              padding={5}
-            >
-              <Typography variant="h3" color="#333" textAlign="center">
-                {name.charAt(0).toUpperCase() + name.slice(1)}
-              </Typography>
-              <Typography variant="h3" color="#333" textAlign="center">
-                {quantity}
-              </Typography>
-              <Button
-                variant="contained"
-                onClick={() => {
-                  removeItem(name);
-                }}
-              >
-                Remove item
-              </Button>
-              <Button
-                variant="contained"
-                onClick={() => {
-                  setSelectedItem(name);
-                  handleUOpen();
-                }}
-              >
-                Update Item
-              </Button>
-            </Box>
-          ))}
-        </Stack>
-      </Box>
     </Box>
   );
 }
